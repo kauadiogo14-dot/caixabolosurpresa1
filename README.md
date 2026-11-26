@@ -1,25 +1,36 @@
-# Caixa Bolo Surpresa: Landing Page
+# Caixa Bolo Surpresa: Landing Page (Vercel)
 
-## Como publicar no GitHub Pages
+## O que está instalado
 
-1. No GitHub, crie um repositório **público** (ex.: `caixa-bolo-surpresa`).
-2. Clique em **Add file → Upload files** e arraste **o conteúdo** desta pasta: `index.html`, a pasta `assets` e este `README.md`. Depois clique em **Commit changes**.
-3. Vá em **Settings → Pages**. Em *Branch*, escolha `main` e a pasta `/ (root)`, e clique em **Save**.
-4. Em 1 a 2 minutos, a página fica no ar em `https://SEU-USUARIO.github.io/caixa-bolo-surpresa/`.
+- **UTMify:** guarda as UTMs da campanha e repassa para o checkout. O script fica no `<head>` do `index.html`.
+- **Meta Pixel `1699076581600295`:** dispara `PageView` e `ViewContent` no navegador.
+- **API de Conversões da Meta:** o mesmo `ViewContent` é enviado pelo servidor, pela função `api/meta-capi.js`, com o mesmo `event_id`. A Meta junta os dois e conta uma vez só (deduplicação).
 
-## O que editar (em `index.html`, no bloco `window.OFERTA`, perto do fim do arquivo)
+## Variável de ambiente na Vercel
 
-- `checkout.promocional`: link da Hotmart da oferta de **R$ 19,90** (o botão da roleta). **Está vazio:** sem ele, o botão mostra "Esta oferta estará disponível em breve".
-- `checkout.basico`: link da oferta de **R$ 10,00**. Também está vazio.
-- `checkout.premium`: link do Premium de R$ 29,90 (já preenchido).
-- `roleta`:
-  - `ativa`: liga ou desliga a roleta.
-  - `esperaMinimaSegundos`: tempo antes da primeira abertura automática.
-  - `intervaloSegundos`: pausa depois que o cliente fecha a roleta.
-  - `botaoVoltar`: faz a roleta abrir no botão Voltar do celular.
+Em **Project → Settings → Environment Variables**:
 
-Os preços exibidos ficam em `precos`. Eles não alteram o valor cobrado na Hotmart.
+| Nome | Valor | Obrigatória |
+|---|---|---|
+| `META_CAPI_ACCESS_TOKEN` | Token da API de Conversões do Pixel | Sim |
+| `META_TEST_EVENT_CODE` | Código de teste do Gerenciador de Eventos (ex.: `TEST12345`) | Só para testar |
+| `META_PIXEL_ID` | Outro Pixel (padrão: 1699076581600295) | Não |
+| `META_GRAPH_VERSION` | Versão da API (padrão: v26.0) | Não |
 
-## Prévia no WhatsApp/Facebook (opcional)
+O token é gerado no **Gerenciador de Eventos → seu Pixel → Configurações → API de Conversões → Gerar token de acesso**.
 
-A tag `og:image` aponta para `assets/mockup-kit-completo.webp`. Para a imagem aparecer quando o link for compartilhado, troque pelo endereço completo depois de publicar, por exemplo: `https://SEU-USUARIO.github.io/caixa-bolo-surpresa/assets/mockup-kit-completo.webp`.
+Depois de criar ou alterar uma variável, faça um **Redeploy**: a variável só vale a partir do deploy seguinte.
+
+## Publicar
+
+1. Envie para um repositório no GitHub **o conteúdo desta pasta** (`index.html`, `assets/`, `api/`, `README.md`).
+2. Na Vercel: **Add New → Project**, importe o repositório e mantenha o preset **Other**, sem build.
+3. Cadastre a variável `META_CAPI_ACCESS_TOKEN` e faça o deploy.
+
+A função da API de Conversões só funciona na Vercel. O GitHub Pages não roda a pasta `api/`.
+
+## Como testar
+
+1. Cadastre `META_TEST_EVENT_CODE` com o código da aba **Eventos de teste** do Gerenciador de Eventos e faça um redeploy.
+2. Abra o site. Na aba de teste devem aparecer o `ViewContent` do **Navegador** e o do **Servidor**, marcados como deduplicados.
+3. Depois do teste, **apague** `META_TEST_EVENT_CODE` e faça outro redeploy.
