@@ -436,43 +436,55 @@ window.OFERTA = {
     clearTimeout(spinTimer);spinTimer=setTimeout(()=>{revealReward(!reduce);track('wheel_reward',{currency:'BRL',value:cfg.precos.promocional});},reduce?80:4600);
   });
   const enteredAt=Date.now();
-  // Sem limite de vezes: só não abre por cima de outra janela da página nem logo depois de o cliente fechar a roleta.
-  function canAutoShow(){const now=Date.now();return cfg.roleta.ativa&&!openModal&&now-enteredAt>=cfg.roleta.esperaMinimaSegundos*1000&&now-wheelClosedAt>=(cfg.roleta.intervaloSegundos||0)*1000;}
-  // Desktop: intenção de saída pelo topo. O navegador não permite modal personalizado ao fechar uma aba.
-  document.addEventListener('mouseout',e=>{if(!e.relatedTarget && e.clientY<=20 && matchMedia('(pointer:fine)').matches && canAutoShow())showWheel('saida_desktop');});
-  // Computador e celular: o cliente saiu para outra aba/app (ou voltou do checkout) e retornou à página.
-  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&canAutoShow())showWheel('retorno_aba');});
-  addEventListener('pageshow',e=>{if(e.persisted&&canAutoShow())showWheel('retorno_aba');});
-  // Celular: botão Voltar. Cria uma entrada extra no histórico depois de um toque do cliente
-  // (o Chrome ignora entradas criadas sem toque). Ao voltar, abre a roleta; Voltar de novo sai da página.
-  let backArmed=!!(history.state&&history.state.cbsRoleta);
-  function armBack(){
-    if(!cfg.roleta.ativa||!cfg.roleta.botaoVoltar||backArmed||$('#wheel-modal').open) return;
-    if(!matchMedia('(pointer:coarse)').matches) return;
-    if(navigator.userActivation&&!navigator.userActivation.isActive) return;
-    try{history.pushState({cbsRoleta:true},'',location.href);backArmed=true;}catch{}
+  // Somente sinais de saída: rolagem e retorno de aba nunca abrem ofertas.
+  function canAutoShow(){const now=Date.now();return cfg.roleta.ativa&&!openModal&&document.visibilityState==='visible'&&now-enteredAt>=cfg.roleta.esperaMinimaSegundos*1000&&now-wheelClosedAt>=(cfg.roleta.intervaloSegundos||0)*1000;}
+  document.addEventListener('mouseout',e=>{
+    if(!e.relatedTarget&&e.clientY<=0&&matchMedia('(pointer:fine)').matches&&canAutoShow())showWheel('saida_desktop');
+  });
+
+  // Uma única proteção no Voltar, depois de interação real. O segundo Voltar sai.
+  // Entradas de âncoras internas não são tratadas como tentativa de deixar a LP.
+  const exitEntryUrl=location.href;
+  const exitEntryId=`cbs-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  let exitBaseState=null,backArmed=false,backGuardCreated=false;
+  function armBack(e){
+    if(!e.isTrusted||!cfg.roleta.ativa||!cfg.roleta.botaoVoltar||backGuardCreated||openModal)return;
+    if(!matchMedia('(pointer:coarse)').matches||location.href!==exitEntryUrl)return;
+    if(navigator.userActivation&&!navigator.userActivation.isActive)return;
+    if(e.target&&e.target.closest&&e.target.closest('[data-buy]'))return;
+    const link=e.target&&e.target.closest?e.target.closest('a[href]'):null;
+    if(link){
+      try{const target=new URL(link.href,location.href);const current=new URL(location.href);if(target.origin!==current.origin||target.pathname!==current.pathname||target.search!==current.search)return;}catch{return;}
+    }
+    exitBaseState=history.state;
+    const previous=exitBaseState&&typeof exitBaseState==='object'?exitBaseState:{};
+    try{
+      history.replaceState({...previous,cbsExitBase:exitEntryId},'',exitEntryUrl);
+      history.pushState({...previous,cbsExitGuard:exitEntryId},'',exitEntryUrl);
+      backGuardCreated=true;backArmed=true;
+    }catch{
+      try{history.replaceState(exitBaseState,'',exitEntryUrl);}catch{}
+    }
   }
   ['click','touchend','keydown'].forEach(type=>addEventListener(type,armBack,{capture:true,passive:true}));
   addEventListener('popstate',e=>{
-    if(e.state&&e.state.cbsRoleta){backArmed=true;return;}
-    if(!backArmed) return;
+    if(!backArmed||!e.state||e.state.cbsExitBase!==exitEntryId||location.href!==exitEntryUrl)return;
     backArmed=false;
-    showWheel('voltar_celular');
+    try{history.replaceState(exitBaseState,'',exitEntryUrl);}catch{}
+    if(canAutoShow())showWheel('voltar_celular');
+    else history.back();
   });
-  // Celular: retorno significativo para cima após explorar a página, sem prender o botão Voltar.
-  let lastY=scrollY, maxY=scrollY, upwardStart=null, ticking=false;
+
+  // A rolagem controla somente o botão fixo de compra.
+  let ticking=false;
   function onScroll(){
     const y=scrollY;
-    maxY=Math.max(maxY,y);
-    if(y<lastY-2){if(upwardStart===null)upwardStart=lastY;}else if(y>lastY+2){upwardStart=null;}
-    const enoughRead=maxY>Math.min(900,(document.documentElement.scrollHeight-innerHeight)*.3);
-    if(matchMedia('(pointer:coarse)').matches&&enoughRead&&upwardStart!==null&&upwardStart-y>220&&canAutoShow()){showWheel('retorno_mobile');upwardStart=null;}
     const planRect=$('#planos').getBoundingClientRect();
     const plansVisible=planRect.top<innerHeight*.65&&planRect.bottom>100;
     $('#mobile-bar').classList.toggle('visible',y>400&&!plansVisible);
-    lastY=y;ticking=false;
+    ticking=false;
   }
-  addEventListener('scroll',()=>{if(!ticking){requestAnimationFrame(onScroll);ticking=true;}},{passive:true});
+  addEventListener('scroll',()=>{if(!ticking){ticking=true;requestAnimationFrame(onScroll);}},{passive:true});
   onScroll();
 
   $('#watch-video').addEventListener('click',()=> {
